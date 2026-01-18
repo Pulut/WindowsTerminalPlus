@@ -63,15 +63,15 @@ $dumpListFile = Join-Path $tempDir "dump.resfiles"
     <indexer-config type="RESFILES" qualifierDelimiter="." />
   </index>
 </resources>
-"@ | Out-File -Encoding:utf8NoBOM $priConfig
+"@ | Out-File -Encoding utf8 $priConfig
 
 $Path | Where { $_ -Like "*.pri" } | ForEach-Object {
     Get-Item $_ | Select -Expand FullName
-} | Out-File -Encoding:utf8NoBOM $priListFile
+} | Out-File -Encoding utf8 $priListFile
 
 $Path | Where { $_ -Like "*.xml" } | ForEach-Object {
     Get-Item $_ | Select -Expand FullName
-} | Out-File -Encoding:utf8NoBOM $dumpListFile
+} | Out-File -Encoding utf8 $dumpListFile
 
 & $MakePriPath new /pr $tempDir /cf $priConfig /o /in $IndexName /of $OutputPath
 
