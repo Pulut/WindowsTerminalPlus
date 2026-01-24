@@ -19,7 +19,7 @@
 
   <PropertyGroup Label="NuGet Dependencies">
     <TerminalCppWinrt>true</TerminalCppWinrt>
-    <TerminalThemeHelpers>true</TerminalThemeHelpers>
+    <TerminalThemeHelpers>false</TerminalThemeHelpers>
     <TerminalMUX>true</TerminalMUX>
     <TerminalWinGetInterop>true</TerminalWinGetInterop>
   </PropertyGroup>

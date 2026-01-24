@@ -5,7 +5,7 @@
 #include "AppHost.h"
 
 #include <dwmapi.h>
-#include <TerminalThemeHelpers.h>
+// #include <TerminalThemeHelpers.h>  // Internal Windows API, not available in public builds
 #include <til/latch.h>
 
 #include "VirtualDesktopUtils.h"
@@ -278,7 +278,8 @@ void AppHost::Initialize()
     // applications. This call into TerminalThemeHelpers will tell our
     // compositor to automatically complete animations that are scheduled
     // while the screen is off.
-    TerminalTrySetAutoCompleteAnimationsWhenOccluded(static_cast<::IUnknown*>(winrt::get_abi(_windowLogic.GetRoot())), true);
+    // NOTE: TerminalThemeHelpers is an internal Windows API, disabled for open-source builds.
+    // TerminalTrySetAutoCompleteAnimationsWhenOccluded(static_cast<::IUnknown*>(winrt::get_abi(_windowLogic.GetRoot())), true);
 
     _window->SetSnapDimensionCallback([this](auto&& PH1, auto&& PH2) { return _windowLogic.CalcSnappedDimension(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2)); });
 

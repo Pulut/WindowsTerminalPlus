@@ -4,15 +4,18 @@
 #include "pch.h"
 #include "App.h"
 #include "App.g.cpp"
+#include "CommandHelper.h" // Added for JSON commands
 
-using namespace winrt;
-using namespace winrt::Windows::ApplicationModel::Activation;
-using namespace winrt::Windows::Foundation;
+using namespace winrt::Windows::ApplicationModel::DataTransfer;
 using namespace winrt::Windows::UI::Xaml;
-using namespace winrt::Windows::UI::Xaml::Controls;
-using namespace winrt::Windows::UI::Xaml::Navigation;
-
-namespace xaml = ::winrt::Windows::UI::Xaml;
+using namespace winrt::Windows::UI::Text;
+using namespace winrt::Windows::UI::Core;
+using namespace winrt::Windows::System;
+using namespace winrt::Microsoft::Terminal;
+using namespace winrt::Microsoft::Terminal::Settings::Model;
+using namespace ::TerminalApp;
+namespace xaml = winrt::Windows::UI::Xaml;
+using namespace winrt::Windows::ApplicationModel::Activation;
 
 namespace winrt::TerminalApp::implementation
 {
@@ -24,6 +27,19 @@ namespace winrt::TerminalApp::implementation
         // mode: we want full control of and responsibility for the foreground
         // and background colors that we draw in XAML.
         HighContrastAdjustment(::winrt::Windows::UI::Xaml::ApplicationHighContrastAdjustment::None);
+
+        // ---------------------------------------------------------
+        // CUSTOM COMMAND LOADER TEST
+        // ---------------------------------------------------------
+        try {
+            auto cmds = ::TerminalApp::CommandHelper::Load();
+            wchar_t msg[256];
+            swprintf_s(msg, L"[Custom] Loaded %d commands from JSON.\n", (int)cmds.size());
+            OutputDebugStringW(msg);
+        } catch (...) {
+            OutputDebugStringW(L"[Custom] Failed to load commands.\n");
+        }
+        // ---------------------------------------------------------
     }
 
     void App::Initialize()

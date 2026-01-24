@@ -4,12 +4,26 @@
 #pragma once
 #include "SnippetsPaneContent.g.h"
 #include "FilteredTask.g.h"
+#include "AiCommandItem.g.h"
 #include "BasicPaneEvents.h"
 #include "FilteredCommand.h"
 #include "CommandPaletteItems.h"
 
 namespace winrt::TerminalApp::implementation
 {
+    struct AiCommandItem : AiCommandItemT<AiCommandItem>
+    {
+        AiCommandItem() = default;
+        AiCommandItem(winrt::hstring cmd, winrt::hstring desc) : _cmd(std::move(cmd)), _desc(std::move(desc)) {}
+
+        winrt::hstring Cmd() const { return _cmd; }
+        winrt::hstring Desc() const { return _desc; }
+
+    private:
+        winrt::hstring _cmd;
+        winrt::hstring _desc;
+    };
+
     struct SnippetsPaneContent : SnippetsPaneContentT<SnippetsPaneContent>, BasicPaneEvents
     {
         SnippetsPaneContent();
@@ -34,9 +48,15 @@ namespace winrt::TerminalApp::implementation
         void SetLastActiveControl(const Microsoft::Terminal::Control::TermControl& control);
         bool HasSnippets() const;
 
+        // AI Commands
+        winrt::hstring AiCommandsTitle() const { return _aiCommandsTitle; }
+        winrt::Windows::Foundation::Collections::IObservableVector<TerminalApp::AiCommandItem> AiCommands() const { return _aiCommands; }
+        void UpdateAiCommands(const winrt::hstring& tabTitle);
+
         // See BasicPaneEvents for most generic event definitions
 
         til::property_changed_event PropertyChanged;
+        WINRT_OBSERVABLE_PROPERTY(bool, IsEmbedded, PropertyChanged.raise, false);
 
     private:
         friend struct SnippetsPaneContentT<SnippetsPaneContent>; // for Xaml to bind events
@@ -45,7 +65,12 @@ namespace winrt::TerminalApp::implementation
         winrt::Microsoft::Terminal::Settings::Model::CascadiaSettings _settings{ nullptr };
         winrt::Windows::Foundation::Collections::IObservableVector<TerminalApp::FilteredTask> _allTasks{ nullptr };
 
-        void _runCommandButtonClicked(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs&);
+        // AI Commands
+        winrt::hstring _aiCommandsTitle{ L"AI 命令" };
+        winrt::Windows::Foundation::Collections::IObservableVector<TerminalApp::AiCommandItem> _aiCommands{ nullptr };
+        void _loadAiCommandsFromJson();
+        std::map<std::wstring, std::vector<std::pair<std::wstring, std::wstring>>> _aiCommandsData;
+
         void _closePaneClick(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs&);
         void _filterTextChanged(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
 
@@ -103,6 +128,11 @@ namespace winrt::TerminalApp::implementation
             return winrt::hstring{};
         };
 
+        winrt::hstring Description()
+        {
+            return _command ? _command.Description() : winrt::hstring{};
+        }
+
         winrt::Windows::Foundation::Collections::IObservableVector<TerminalApp::FilteredTask> Children() { return _children; }
         bool HasChildren() { return _children.Size() > 0; }
         winrt::Microsoft::Terminal::Settings::Model::Command Command() { return _command; }
@@ -144,4 +174,5 @@ namespace winrt::TerminalApp::implementation
 namespace winrt::TerminalApp::factory_implementation
 {
     BASIC_FACTORY(SnippetsPaneContent);
+    BASIC_FACTORY(AiCommandItem);
 }

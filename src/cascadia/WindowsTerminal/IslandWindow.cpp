@@ -7,7 +7,7 @@
 #include "resource.h"
 #include "icon.h"
 #include <dwmapi.h>
-#include <TerminalThemeHelpers.h>
+// #include <TerminalThemeHelpers.h>  // Internal Windows API, not available in public builds
 #include <CoreWindow.h>
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
@@ -401,7 +401,8 @@ void IslandWindow::Initialize()
 
     // Enable vintage opacity by removing the XAML emergency backstop, GH#603.
     // We don't really care if this failed or not.
-    TerminalTrySetTransparentBackground(true);
+    // NOTE: TerminalThemeHelpers is an internal Windows API, disabled for open-source builds.
+    // TerminalTrySetTransparentBackground(true);
 }
 
 void IslandWindow::OnSize(const UINT width, const UINT height)

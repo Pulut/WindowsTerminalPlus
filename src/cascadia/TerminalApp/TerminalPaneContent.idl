@@ -20,6 +20,7 @@ namespace TerminalApp
     [default_interface] runtimeclass FilteredTask : Windows.UI.Xaml.Data.INotifyPropertyChanged
     {
         String Input{ get; };
+        String Description{ get; };
         Windows.Foundation.Collections.IObservableVector<FilteredTask> Children { get; };
         Boolean HasChildren { get; };
         Int32 Row { get; };
@@ -27,11 +28,22 @@ namespace TerminalApp
         TerminalApp.FilteredCommand FilteredCommand{ get; };
     }
 
+    [default_interface] runtimeclass AiCommandItem
+    {
+        AiCommandItem();
+        String Cmd { get; };
+        String Desc { get; };
+    }
+
     [default_interface] runtimeclass SnippetsPaneContent : Windows.UI.Xaml.Controls.UserControl, IPaneContent, Windows.UI.Xaml.Data.INotifyPropertyChanged
     {
         SnippetsPaneContent();
         void SetLastActiveControl(Microsoft.Terminal.Control.TermControl control);
         Boolean HasSnippets { get; };
+        Boolean IsEmbedded { get; set; };
+        String AiCommandsTitle { get; };
+        Windows.Foundation.Collections.IObservableVector<AiCommandItem> AiCommands { get; };
+        void UpdateAiCommands(String tabTitle);
         event Windows.Foundation.TypedEventHandler<Object, Microsoft.Terminal.Settings.Model.Command> DispatchCommandRequested;
     }
 }

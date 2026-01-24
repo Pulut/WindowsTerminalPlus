@@ -19,6 +19,7 @@
 #include "DebugTapConnection.h"
 #include "..\TerminalSettingsModel\FileUtils.h"
 #include "../TerminalSettingsAppAdapterLib/TerminalSettings.h"
+#include "LauncherPaneContent.h"
 
 #include <shlobj.h>
 
@@ -64,8 +65,18 @@ namespace winrt::TerminalApp::implementation
     HRESULT TerminalPage::_OpenNewTab(const INewContentArgs& newContentArgs)
     try
     {
-        if (const auto& newTerminalArgs{ newContentArgs.try_as<NewTerminalArgs>() })
+        INewContentArgs contentArgs{ newContentArgs };
+        auto newTerminalArgs{ newContentArgs.try_as<NewTerminalArgs>() };
+        if (newTerminalArgs == nullptr && newContentArgs == nullptr)
         {
+            newTerminalArgs = NewTerminalArgs{};
+            contentArgs = newTerminalArgs;
+        }
+
+        if (newTerminalArgs)
+        {
+            _MaybePromptForStartingDirectory(newTerminalArgs);
+
             const auto profile{ _settings.GetProfileForArgs(newTerminalArgs) };
             // GH#11114: GetProfileForArgs can return null if the index is higher
             // than the number of available profiles.
@@ -87,7 +98,7 @@ namespace winrt::TerminalApp::implementation
 
         // This call to _MakePane won't return nullptr, we already checked that
         // case above with the _maybeElevate call.
-        _CreateNewTabFromPane(_MakePane(newContentArgs, nullptr));
+        _CreateNewTabFromPane(_MakePane(contentArgs, nullptr));
         return S_OK;
     }
     CATCH_RETURN();
@@ -996,6 +1007,24 @@ namespace winrt::TerminalApp::implementation
                 _updateAllTabCloseButtons();
             }
 
+            if (const auto snippets = SnippetsPane())
+            {
+                if (const auto& control{ _GetActiveControl() })
+                {
+                    snippets.SetLastActiveControl(control);
+                }
+            }
+
+            // Update git log based on tab working directory
+            if (auto launcherPane = LauncherPane())
+            {
+                if (const auto& control{ _GetActiveControl() })
+                {
+                    auto launcherImpl = winrt::get_self<LauncherPaneContent>(launcherPane);
+                    launcherImpl->UpdateGitLog(control.WorkingDirectory());
+                }
+            }
+
             tab.TabViewItem().StartBringIntoView();
 
             // Raise an event that our title changed
@@ -1039,6 +1068,24 @@ namespace winrt::TerminalApp::implementation
             {
                 const auto tab{ _tabs.GetAt(selectedIndex) };
                 _UpdatedSelectedTab(tab);
+
+                // Update AI commands based on tab title
+                if (auto snippetsPane = SnippetsPane())
+                {
+                    auto tabImpl = winrt::get_self<Tab>(tab);
+                    snippetsPane.UpdateAiCommands(tabImpl->Title());
+                }
+
+                // Update git log based on tab working directory
+                if (auto launcherPane = LauncherPane())
+                {
+                    auto tabImpl = winrt::get_self<Tab>(tab);
+                    if (auto control = tabImpl->GetActiveTerminalControl())
+                    {
+                        auto launcherImpl = winrt::get_self<LauncherPaneContent>(launcherPane);
+                        launcherImpl->UpdateGitLog(control.WorkingDirectory());
+                    }
+                }
             }
         }
     }

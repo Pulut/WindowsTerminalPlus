@@ -13,6 +13,7 @@
 #include "RequestMoveContentArgs.g.h"
 #include "LaunchPositionRequest.g.h"
 #include "Toast.h"
+#include "LauncherPaneContent.h"
 
 #include "WindowsPackageManagerFactory.h"
 
@@ -215,6 +216,9 @@ namespace winrt::TerminalApp::implementation
         friend struct TerminalPageT<TerminalPage>; // for Xaml to bind events
         std::optional<HWND> _hostingHwnd;
 
+        void _HandleLaunchRequestEvent(const TerminalApp::LauncherPaneContent& sender, const TerminalApp::LaunchRequestedArgs& args);
+        safe_void_coroutine _HandleLaunchRequest(winrt::hstring workingDirectory, winrt::hstring command);
+
         // If you add controls here, but forget to null them either here or in
         // the ctor, you're going to have a bad time. It'll mysteriously fail to
         // activate the app.
@@ -325,7 +329,8 @@ namespace winrt::TerminalApp::implementation
 
         safe_void_coroutine _OpenNewWindow(const Microsoft::Terminal::Settings::Model::INewContentArgs newContentArgs);
 
-        void _OpenNewTerminalViaDropdown(const Microsoft::Terminal::Settings::Model::NewTerminalArgs newTerminalArgs);
+        void _OpenNewTerminalViaDropdown(Microsoft::Terminal::Settings::Model::NewTerminalArgs newTerminalArgs);
+        void _MaybePromptForStartingDirectory(Microsoft::Terminal::Settings::Model::NewTerminalArgs& newTerminalArgs);
 
         bool _displayingCloseDialog{ false };
         void _SettingsButtonOnClick(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
@@ -337,6 +342,10 @@ namespace winrt::TerminalApp::implementation
         static void _ClearKeyboardState(const WORD vkey, const WORD scanCode) noexcept;
         void _HookupKeyBindings(const Microsoft::Terminal::Settings::Model::IActionMapView& actionMap) noexcept;
         void _RegisterActionCallbacks();
+        void _InitializeSnippetsPane();
+        void _SnippetsPaneSplitterDragDelta(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Controls::Primitives::DragDeltaEventArgs& args);
+        void _SnippetsPaneSplitterDragCompleted(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Controls::Primitives::DragCompletedEventArgs& args);
+        void _LauncherPaneLaunchRequested(const TerminalApp::LauncherPaneContent& sender, const TerminalApp::LaunchRequestedArgs& args);
 
         void _UpdateTitle(const Tab& tab);
         void _UpdateTabIcon(Tab& tab);

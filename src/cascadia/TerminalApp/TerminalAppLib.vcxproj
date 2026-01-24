@@ -26,7 +26,7 @@
     <TerminalCppWinrt>true</TerminalCppWinrt>
     <TerminalMUX>true</TerminalMUX>
     <TerminalWinGetInterop>true</TerminalWinGetInterop>
-    <TerminalThemeHelpers>true</TerminalThemeHelpers>
+    <TerminalThemeHelpers>false</TerminalThemeHelpers>
   </PropertyGroup>
   <Import Project="..\..\..\common.openconsole.props" Condition="'$(OpenConsoleDir)'==''" />
   <Import Project="$(OpenConsoleDir)src\common.nugetversions.props" />
@@ -75,6 +75,9 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="SnippetsPaneContent.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="LauncherPaneContent.xaml">
       <SubType>Designer</SubType>
     </Page>
     <Page Include="MarkdownPaneContent.xaml">
@@ -135,6 +138,7 @@
     <ClInclude Include="FilteredCommand.h" />
     <ClInclude Include="Pane.h" />
     <ClInclude Include="fzf/fzf.h" />
+    <ClInclude Include="CommandHelper.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ShortcutActionDispatch.h">
       <DependentUpon>ShortcutActionDispatch.idl</DependentUpon>
@@ -169,6 +173,9 @@
     </ClInclude>
     <ClInclude Include="SnippetsPaneContent.h">
       <DependentUpon>SnippetsPaneContent.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="LauncherPaneContent.h">
+      <DependentUpon>LauncherPaneContent.xaml</DependentUpon>
     </ClInclude>
     <ClInclude Include="SettingsPaneContent.h">
       <DependentUpon>TerminalPaneContent.idl</DependentUpon>
@@ -282,6 +289,9 @@
     <ClCompile Include="SnippetsPaneContent.cpp">
       <DependentUpon>SnippetsPaneContent.xaml</DependentUpon>
     </ClCompile>
+    <ClCompile Include="LauncherPaneContent.cpp">
+      <DependentUpon>LauncherPaneContent.xaml</DependentUpon>
+    </ClCompile>
     <ClCompile Include="SettingsPaneContent.cpp">
       <DependentUpon>TerminalPaneContent.idl</DependentUpon>
     </ClCompile>
@@ -358,6 +368,10 @@
     </Midl>
     <Midl Include="FilteredCommand.idl" />
     <Midl Include="IPaneContent.idl" />
+    <Midl Include="LauncherPaneContent.idl">
+      <DependentUpon>LauncherPaneContent.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
     <Midl Include="TerminalPaneContent.idl">
       <DependentUpon>TaskPaneContent.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -374,6 +388,18 @@
     </PRIResource>
     <PRIResource Include="Resources\en-US\ContextMenu.resw" />
     <OCResourceDirectory Include="Resources" />
+  </ItemGroup>
+  <!-- ========================= Assets ======================== -->
+  <ItemGroup>
+    <Content Include="Assets\claude-code.webp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\codex.webp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Gemini.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <!-- ========================= Project References ======================== -->
   <ItemGroup>
@@ -483,7 +509,9 @@
   <!-- ====================== Compiler & Linker Flags ===================== -->
   <ItemDefinitionGroup>
     <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalOptions>/Zm200 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>..;%(AdditionalIncludeDirectories);</AdditionalIncludeDirectories>
       <!-- Manually disable unreachable code warning, because jconcpp has a ton of that. -->
       <DisableSpecificWarnings>4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>

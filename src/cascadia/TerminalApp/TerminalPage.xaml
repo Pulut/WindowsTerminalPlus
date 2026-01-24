@@ -10,6 +10,7 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:mtu="using:Microsoft.Terminal.UI"
       xmlns:mux="using:Microsoft.UI.Xaml.Controls"
+      xmlns:primitives="using:Windows.UI.Xaml.Controls.Primitives"
       Background="Transparent"
       mc:Ignorable="d">
 
@@ -56,13 +57,57 @@
             </mux:InfoBar>
         </StackPanel>
 
-        <Grid x:Name="TabContent"
+        <Grid x:Name="TabContentRoot"
               Grid.Row="2"
               HorizontalAlignment="Stretch"
               VerticalAlignment="Stretch">
-            <Grid.Background>
-                <ImageBrush />
-            </Grid.Background>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="LauncherPaneColumn"
+                                  Width="250"
+                                  MinWidth="200" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition x:Name="SnippetsPaneColumn"
+                                  Width="100"
+                                  MinWidth="80" />
+            </Grid.ColumnDefinitions>
+
+            <local:LauncherPaneContent x:Name="LauncherPane"
+                                       Grid.Column="0"
+                                       HorizontalAlignment="Stretch"
+                                       VerticalAlignment="Stretch" />
+
+            <primitives:Thumb x:Name="LauncherPaneSplitter"
+                              Grid.Column="1"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Background="{ThemeResource SystemControlForegroundBaseLowBrush}"
+                              Opacity="0.35" />
+
+            <Grid x:Name="TabContent"
+                  Grid.Column="2"
+                  HorizontalAlignment="Stretch"
+                  VerticalAlignment="Stretch">
+                <Grid.Background>
+                    <ImageBrush />
+                </Grid.Background>
+            </Grid>
+
+            <primitives:Thumb x:Name="SnippetsPaneSplitter"
+                              Grid.Column="3"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Background="{ThemeResource SystemControlForegroundBaseLowBrush}"
+                              Opacity="0.35"
+                              DragDelta="_SnippetsPaneSplitterDragDelta"
+                              DragCompleted="_SnippetsPaneSplitterDragCompleted" />
+
+            <local:SnippetsPaneContent x:Name="SnippetsPane"
+                                       Grid.Column="4"
+                                       HorizontalAlignment="Stretch"
+                                       VerticalAlignment="Stretch"
+                                       IsEmbedded="True" />
         </Grid>
 
         <!--

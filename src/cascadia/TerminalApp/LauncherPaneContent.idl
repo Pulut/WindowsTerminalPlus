@@ -1,0 +1,30 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+import "IPaneContent.idl";
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass LaunchRequestedArgs
+    {
+        LaunchRequestedArgs();
+        String WorkingDirectory;
+        String Command;
+    }
+
+    [default_interface] runtimeclass GitCommitItem
+    {
+        GitCommitItem();
+        String DateTimeAndHash { get; };
+        String Message { get; };
+    }
+
+    [default_interface] runtimeclass LauncherPaneContent : Windows.UI.Xaml.Controls.UserControl,
+                                                           IPaneContent,
+                                                           Windows.UI.Xaml.Data.INotifyPropertyChanged
+    {
+        LauncherPaneContent();
+
+        String SelectedFolder { get; };
+    }
+}

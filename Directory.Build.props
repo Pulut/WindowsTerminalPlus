@@ -62,4 +62,6 @@
     <Import Project="$(MSBuildCachePackageRoot)\build\$(MSBuildCachePackageName).props" />
     <Import Project="$(MSBuildCacheSharedCompilationPackageRoot)\build\Microsoft.MSBuildCache.SharedCompilation.props" />
   </ImportGroup>
+
+  <!-- Removed GEMINI OPTIMIZATION - PCH disabling was causing heap corruption at runtime -->
 </Project>

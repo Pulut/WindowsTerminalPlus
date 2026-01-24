@@ -881,25 +881,25 @@
     <value>重新启动活动窗格连接</value>
   </data>
   <data name="SnippetPaneTitle.Text" xml:space="preserve">
-    <value>片段</value>
+    <value>常用命令</value>
     <comment>Header for a page that includes small "snippets" of text for the user to enter</comment>
   </data>
   <data name="SnippetsFilterBox.PlaceholderText" xml:space="preserve">
-    <value>筛选代码片段...</value>
+    <value>筛选命令...</value>
     <comment>Placeholder text for a text box to filter snippets (on the same page as the 'SnippetPaneTitle')</comment>
   </data>
   <data name="SnippetPlayButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>输入此命令</value>
+    <value>发送到当前终端</value>
   </data>
   <data name="SnippetPlayButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>输入此命令</value>
+    <value>发送到当前终端</value>
   </data>
   <data name="SnippetsPaneNoneFoundHeader.Text" xml:space="preserve">
-    <value>在设置中找不到代码片段。</value>
+    <value>未找到常用命令。</value>
     <comment>Text shown to user when no snippets are found in their settings</comment>
   </data>
   <data name="SnippetsPaneNoneFoundDetails.Text" xml:space="preserve">
-    <value>在设置中添加一些“发送输入”操作，使其显示在此处。</value>
+    <value>请在程序目录的 snippets.json 或当前目录的 .wt.json 中添加 sendInput 命令。</value>
     <comment>Additional information presented to the user to let them know they can add a "Send input" action in their setting to populate the snippets pane</comment>
   </data>
   <data name="ActionSavedToast.Title" xml:space="preserve">

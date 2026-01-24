@@ -6,10 +6,11 @@
 #include "TerminalPage.h"
 
 #include <TerminalCore/ControlKeyStates.hpp>
-#include <TerminalThemeHelpers.h>
+// #include <TerminalThemeHelpers.h>
 #include <til/hash.h>
 #include <til/unicode.h>
 #include <Utils.h>
+#include <fstream>
 
 #include "../../types/inc/ColorFix.hpp"
 #include "../../types/inc/utils.hpp"
@@ -21,6 +22,7 @@
 #include "ScratchpadContent.h"
 #include "SettingsPaneContent.h"
 #include "SnippetsPaneContent.h"
+#include "LauncherPaneContent.h"
 #include "TabRowControl.h"
 #include "TerminalSettingsCache.h"
 
@@ -225,6 +227,12 @@ namespace winrt::TerminalApp::implementation
     {
         InitializeComponent();
         _WindowProperties.PropertyChanged({ get_weak(), &TerminalPage::_windowPropertyChanged });
+
+        // Connect LauncherPane event
+        if (const auto launcher = LauncherPane())
+        {
+            winrt::get_self<implementation::LauncherPaneContent>(launcher)->LaunchRequested({ get_weak(), &TerminalPage::_HandleLaunchRequestEvent });
+        }
     }
 
     // Method Description:
@@ -289,6 +297,11 @@ namespace winrt::TerminalApp::implementation
             _RefreshUIForSettingsReload();
         }
 
+        if (const auto snippets = SnippetsPane())
+        {
+            snippets.UpdateSettings(_settings);
+        }
+
         // Upon settings update we reload the system settings for scrolling as well.
         // TODO: consider reloading this value periodically.
         _systemRowsToScroll = _ReadSystemRowsToScroll();
@@ -325,6 +338,7 @@ namespace winrt::TerminalApp::implementation
         _tabRow = this->TabRow();
         _tabView = _tabRow.TabView();
         _rearranging = false;
+        _InitializeSnippetsPane();
 
         const auto canDragDrop = CanDragDrop();
 
@@ -454,6 +468,176 @@ namespace winrt::TerminalApp::implementation
             [=]() {
                 _adjustProcessPriority();
             });
+    }
+
+    void TerminalPage::_InitializeSnippetsPane()
+    {
+        if (const auto snippets = SnippetsPane())
+        {
+            snippets.DispatchCommandRequested({ this, &TerminalPage::_OnDispatchCommandRequested });
+            snippets.GetRoot().KeyDown({ this, &TerminalPage::_KeyDownHandler });
+
+            if (const auto& termControl{ _GetActiveControl() })
+            {
+                snippets.SetLastActiveControl(termControl);
+            }
+        }
+
+        if (const auto snippetsColumn = SnippetsPaneColumn())
+        {
+            const auto width = ApplicationState::SharedInstance().SnippetsPaneWidth();
+            if (width > 0)
+            {
+                snippetsColumn.Width(GridLengthHelper::FromValueAndType(width, GridUnitType::Pixel));
+            }
+        }
+    }
+
+    void TerminalPage::_SnippetsPaneSplitterDragDelta(const IInspectable& /*sender*/,
+                                                      const Windows::UI::Xaml::Controls::Primitives::DragDeltaEventArgs& args)
+    {
+        if (const auto snippetsColumn = SnippetsPaneColumn())
+        {
+            const auto currentWidth = snippetsColumn.ActualWidth();
+            const auto minWidth = snippetsColumn.MinWidth();
+            const auto newWidth = std::max(minWidth, currentWidth - args.HorizontalChange());
+            snippetsColumn.Width(GridLengthHelper::FromValueAndType(newWidth, GridUnitType::Pixel));
+        }
+    }
+
+    void TerminalPage::_SnippetsPaneSplitterDragCompleted(const IInspectable& /*sender*/,
+                                                          const Windows::UI::Xaml::Controls::Primitives::DragCompletedEventArgs& /*args*/)
+    {
+        if (const auto snippetsColumn = SnippetsPaneColumn())
+        {
+            const auto width = snippetsColumn.ActualWidth();
+            if (width > 0)
+            {
+                ApplicationState::SharedInstance().SnippetsPaneWidth(width);
+            }
+        }
+    }
+
+    // Helper function to write debug log to file
+    static void _WriteDebugLog(const std::wstring& message)
+    {
+        static std::wofstream logFile;
+        static bool initialized = false;
+        if (!initialized)
+        {
+            wchar_t tempPath[MAX_PATH];
+            GetTempPathW(MAX_PATH, tempPath);
+            std::wstring logPath = std::wstring(tempPath) + L"LauncherPane_debug.log";
+            logFile.open(logPath, std::ios::out | std::ios::trunc);
+            initialized = true;
+        }
+        if (logFile.is_open())
+        {
+            logFile << message << std::endl;
+            logFile.flush();
+        }
+        OutputDebugStringW((message + L"\n").c_str());
+    }
+
+    void TerminalPage::_HandleLaunchRequestEvent(const TerminalApp::LauncherPaneContent& /*sender*/,
+                                                  const TerminalApp::LaunchRequestedArgs& args)
+    {
+        _WriteDebugLog(L"[LauncherPane] _HandleLaunchRequestEvent called");
+        _HandleLaunchRequest(args.WorkingDirectory(), args.Command());
+    }
+
+    safe_void_coroutine TerminalPage::_HandleLaunchRequest(winrt::hstring workingDirectory, winrt::hstring command)
+    {
+        _WriteDebugLog(L"[LauncherPane] _HandleLaunchRequest started, dir=" + std::wstring(workingDirectory) + L", cmd=" + std::wstring(command));
+
+        auto weakThis = get_weak();
+
+        // Create a new tab with the selected working directory
+        NewTerminalArgs newTerminalArgs;
+        newTerminalArgs.StartingDirectory(workingDirectory);
+
+        // Get the folder name for the tab title
+        std::wstring path{ workingDirectory };
+        auto lastSlash = path.find_last_of(L"\\/");
+        auto folderName = (lastSlash != std::wstring::npos) ? path.substr(lastSlash + 1) : path;
+
+        // Get command name (remove trailing \r)
+        std::wstring cmd{ command };
+        if (!cmd.empty() && cmd.back() == L'\r')
+        {
+            cmd.pop_back();
+        }
+
+        // Format: command——folderName
+        auto tabTitle = cmd + L"——" + folderName;
+        newTerminalArgs.TabTitle(winrt::hstring{ tabTitle });
+
+        // Prevent the terminal program from changing the tab title
+        newTerminalArgs.SuppressApplicationTitle(true);
+
+        // Create the pane and new tab
+        auto newPane = _MakeTerminalPane(newTerminalArgs);
+        _WriteDebugLog(newPane ? L"[LauncherPane] newPane created successfully" : L"[LauncherPane] newPane is null!");
+
+        auto newTab = _CreateNewTabFromPane(newPane);
+        _WriteDebugLog(newTab ? L"[LauncherPane] newTab created successfully" : L"[LauncherPane] newTab is null!");
+
+        // Select the new tab to make it active
+        if (newTab)
+        {
+            _tabView.SelectedItem(newTab.TabViewItem());
+            _WriteDebugLog(L"[LauncherPane] Selected new tab");
+        }
+
+        // Wait for terminal connection to be ready (poll with timeout)
+        constexpr int maxAttempts = 50; // 50 * 100ms = 5 seconds max
+        for (int attempt = 0; attempt < maxAttempts; ++attempt)
+        {
+            co_await winrt::resume_after(std::chrono::milliseconds(100));
+            co_await wil::resume_foreground(Dispatcher());
+
+            auto strongThis = weakThis.get();
+            if (!strongThis)
+            {
+                _WriteDebugLog(L"[LauncherPane] strongThis is null, exiting");
+                co_return;
+            }
+
+            // Get terminal control from the pane we created
+            auto termControl = newPane->GetTerminalControl();
+            if (!termControl)
+            {
+                _WriteDebugLog(L"[LauncherPane] Attempt " + std::to_wstring(attempt) + L": termControl is null");
+                continue; // Keep waiting
+            }
+
+            try
+            {
+                auto state = termControl.ConnectionState();
+                _WriteDebugLog(L"[LauncherPane] Attempt " + std::to_wstring(attempt) + L": ConnectionState=" + std::to_wstring(static_cast<int>(state)));
+
+                if (state == winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected)
+                {
+                    _WriteDebugLog(L"[LauncherPane] Connection is ready, sending command directly via SendInput");
+                    // Connection is ready, send the command directly to the terminal control
+                    termControl.SendInput(command);
+                    termControl.Focus(winrt::Windows::UI::Xaml::FocusState::Programmatic);
+                    _WriteDebugLog(L"[LauncherPane] Command sent successfully");
+                    co_return;
+                }
+                else if (state >= winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Closed)
+                {
+                    _WriteDebugLog(L"[LauncherPane] Connection closed/failed, exiting");
+                    co_return;
+                }
+            }
+            catch (...)
+            {
+                _WriteDebugLog(L"[LauncherPane] Exception caught, exiting");
+                co_return;
+            }
+        }
+        _WriteDebugLog(L"[LauncherPane] Timeout waiting for connection");
     }
 
     Windows::UI::Xaml::Automation::Peers::AutomationPeer TerminalPage::OnCreateAutomationPeer()
@@ -1363,7 +1547,14 @@ namespace winrt::TerminalApp::implementation
         _newTabButton.Flyout().ShowAt(_newTabButton);
     }
 
-    void TerminalPage::_OpenNewTerminalViaDropdown(const NewTerminalArgs newTerminalArgs)
+    void TerminalPage::_MaybePromptForStartingDirectory(NewTerminalArgs& newTerminalArgs)
+    {
+        // Disabled: Do not prompt for starting directory on startup
+        (void)newTerminalArgs;
+        return;
+    }
+
+    void TerminalPage::_OpenNewTerminalViaDropdown(NewTerminalArgs newTerminalArgs)
     {
         // if alt is pressed, open a pane
         const auto window = CoreWindow::GetForCurrentThread();
@@ -1396,6 +1587,8 @@ namespace winrt::TerminalApp::implementation
         auto sessionType = "";
         if ((shiftPressed || dispatchToElevatedWindow) && !debugTap)
         {
+            _MaybePromptForStartingDirectory(newTerminalArgs);
+
             // Manually fill in the evaluated profile.
             if (newTerminalArgs.ProfileIndex() != nullptr)
             {
@@ -1404,7 +1597,10 @@ namespace winrt::TerminalApp::implementation
                 if (profile)
                 {
                     newTerminalArgs.Profile(::Microsoft::Console::Utils::GuidToString(profile.Guid()));
-                    newTerminalArgs.StartingDirectory(_evaluatePathForCwd(profile.EvaluatedStartingDirectory()));
+                    if (newTerminalArgs.StartingDirectory().empty())
+                    {
+                        newTerminalArgs.StartingDirectory(_evaluatePathForCwd(profile.EvaluatedStartingDirectory()));
+                    }
                 }
             }
 
@@ -1421,6 +1617,11 @@ namespace winrt::TerminalApp::implementation
         }
         else
         {
+            if (!(altPressed && !debugTap))
+            {
+                _MaybePromptForStartingDirectory(newTerminalArgs);
+            }
+
             const auto newPane = _MakePane(newTerminalArgs);
             // If the newTerminalArgs caused us to open an elevated window
             // instead of creating a pane, it may have returned nullptr. Just do
@@ -2286,8 +2487,9 @@ namespace winrt::TerminalApp::implementation
         layout.LaunchMode({ mode });
 
         // Only save the content size because the tab size will be added on load.
-        const auto contentWidth = static_cast<float>(_tabContent.ActualWidth());
-        const auto contentHeight = static_cast<float>(_tabContent.ActualHeight());
+        const auto contentRoot = TabContentRoot();
+        const auto contentWidth = static_cast<float>(contentRoot ? contentRoot.ActualWidth() : _tabContent.ActualWidth());
+        const auto contentHeight = static_cast<float>(contentRoot ? contentRoot.ActualHeight() : _tabContent.ActualHeight());
         const winrt::Windows::Foundation::Size windowSize{ contentWidth, contentHeight };
 
         layout.InitialSize(windowSize);
@@ -2613,6 +2815,14 @@ namespace winrt::TerminalApp::implementation
 
             auto profile = tab->GetFocusedProfile();
             _UpdateBackground(profile);
+        }
+
+        if (const auto snippets = SnippetsPane())
+        {
+            if (const auto& control{ _GetActiveControl() })
+            {
+                snippets.SetLastActiveControl(control);
+            }
         }
 
         _adjustProcessPriorityThrottled->Run();
@@ -5053,100 +5263,8 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_adjustProcessPriority() const
     {
-        // Windowing is single-threaded, so this will not cause a race condition.
-        static uint64_t s_lastUpdateHash{ 0 };
-        static bool s_supported{ true };
-
-        if (!s_supported || !_hostingHwnd.has_value())
-        {
-            return;
-        }
-
-        std::array<HANDLE, 32> processes;
-        auto it = processes.begin();
-        const auto end = processes.end();
-
-        auto&& appendFromControl = [&](auto&& control) {
-            if (it == end)
-            {
-                return;
-            }
-            if (control)
-            {
-                if (const auto conn{ control.Connection() })
-                {
-                    if (const auto pty{ conn.try_as<winrt::Microsoft::Terminal::TerminalConnection::ConptyConnection>() })
-                    {
-                        if (const uint64_t process{ pty.RootProcessHandle() }; process != 0)
-                        {
-                            *it++ = reinterpret_cast<HANDLE>(process);
-                        }
-                    }
-                }
-            }
-        };
-
-        auto&& appendFromTab = [&](auto&& tabImpl) {
-            if (const auto pane{ tabImpl->GetRootPane() })
-            {
-                pane->WalkTree([&](auto&& child) {
-                    if (const auto& control{ child->GetTerminalControl() })
-                    {
-                        appendFromControl(control);
-                    }
-                });
-            }
-        };
-
-        if (!_activated)
-        {
-            // When a window is out of focus, we want to attach all of the processes
-            // under it to the window so they all go into the background at the same time.
-            for (auto&& tab : _tabs)
-            {
-                if (auto tabImpl{ _GetTabImpl(tab) })
-                {
-                    appendFromTab(tabImpl);
-                }
-            }
-        }
-        else
-        {
-            // When a window is in focus, propagate our foreground boost (if we have one)
-            // to current all panes in the current tab.
-            if (auto tabImpl{ _GetFocusedTabImpl() })
-            {
-                appendFromTab(tabImpl);
-            }
-        }
-
-        const auto count{ gsl::narrow_cast<DWORD>(it - processes.begin()) };
-        const auto hash = til::hash((void*)processes.data(), count * sizeof(HANDLE));
-
-        if (hash == s_lastUpdateHash)
-        {
-            return;
-        }
-
-        s_lastUpdateHash = hash;
-        const auto hr = TerminalTrySetWindowAssociatedProcesses(_hostingHwnd.value(), count, count ? processes.data() : nullptr);
-
-        if (S_FALSE == hr)
-        {
-            // Don't bother trying again or logging. The wrapper tells us it's unsupported.
-            s_supported = false;
-            return;
-        }
-
-        TraceLoggingWrite(
-            g_hTerminalAppProvider,
-            "CalledNewQoSAPI",
-            TraceLoggingValue(reinterpret_cast<uintptr_t>(_hostingHwnd.value()), "hwnd"),
-            TraceLoggingValue(count),
-            TraceLoggingHResult(hr));
-#ifdef _DEBUG
-        OutputDebugStringW(fmt::format(FMT_COMPILE(L"Submitted {} processes to TerminalTrySetWindowAssociatedProcesses; return=0x{:08x}\n"), count, hr).c_str());
-#endif
+        // NOTE: TerminalTrySetWindowAssociatedProcesses is an internal Windows API
+        // that is not available in public builds. Disabled for open-source builds.
     }
 
     void TerminalPage::WindowActivated(const bool activated)

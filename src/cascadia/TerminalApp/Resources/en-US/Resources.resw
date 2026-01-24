@@ -881,25 +881,25 @@
     <value>Restart the active pane connection</value>
   </data>
   <data name="SnippetPaneTitle.Text" xml:space="preserve">
-    <value>Snippets</value>
+    <value>&#x5E38;&#x7528;&#x547D;&#x4EE4;</value>
     <comment>Header for a page that includes small "snippets" of text for the user to enter</comment>
   </data>
   <data name="SnippetsFilterBox.PlaceholderText" xml:space="preserve">
-    <value>Filter snippets...</value>
+    <value>&#x7B5B;&#x9009;&#x547D;&#x4EE4;...</value>
     <comment>Placeholder text for a text box to filter snippets (on the same page as the 'SnippetPaneTitle')</comment>
   </data>
   <data name="SnippetPlayButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Input this command</value>
+    <value>&#x53D1;&#x9001;&#x5230;&#x5F53;&#x524D;&#x7EC8;&#x7AEF;</value>
   </data>
   <data name="SnippetPlayButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Input this command</value>
+    <value>&#x53D1;&#x9001;&#x5230;&#x5F53;&#x524D;&#x7EC8;&#x7AEF;</value>
   </data>
   <data name="SnippetsPaneNoneFoundHeader.Text" xml:space="preserve">
-    <value>No snippets found in your settings.</value>
+    <value>&#x672A;&#x627E;&#x5230;&#x5E38;&#x7528;&#x547D;&#x4EE4;&#x3002;</value>
     <comment>Text shown to user when no snippets are found in their settings</comment>
   </data>
   <data name="SnippetsPaneNoneFoundDetails.Text" xml:space="preserve">
-    <value>Add some "Send input" actions in your settings to have them show up here.</value>
+    <value>&#x8BF7;&#x5728;&#x7A0B;&#x5E8F;&#x76EE;&#x5F55;&#x7684; snippets.json &#x6216;&#x5F53;&#x524D;&#x76EE;&#x5F55;&#x7684; .wt.json &#x4E2D;&#x6DFB;&#x52A0; sendInput &#x547D;&#x4EE4;&#x3002;</value>
     <comment>Additional information presented to the user to let them know they can add a "Send input" action in their setting to populate the snippets pane</comment>
   </data>
   <data name="ActionSavedToast.Title" xml:space="preserve">
@@ -909,10 +909,10 @@
     <value>Action save failed</value>
   </data>
   <data name="CloseSnippetsPaneButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Close pane</value>
+    <value>&#x5173;&#x95ED;&#x7A97;&#x683C;</value>
   </data>
   <data name="CloseSnippetsPaneButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Close pane</value>
+    <value>&#x5173;&#x95ED;&#x7A97;&#x683C;</value>
   </data>
   <data name="TabMoveLeft" xml:space="preserve">
     <value>Move left</value>

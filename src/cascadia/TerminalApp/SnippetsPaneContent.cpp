@@ -5,7 +5,12 @@
 #include "SnippetsPaneContent.h"
 #include "SnippetsPaneContent.g.cpp"
 #include "FilteredTask.g.cpp"
+#include "AiCommandItem.g.cpp"
 #include "Utils.h"
+
+#include <filesystem>
+#include <fstream>
+#include <json/json.h>
 
 using namespace winrt::Windows::Foundation;
 using namespace winrt::Windows::System;
@@ -22,11 +27,124 @@ namespace winrt
 namespace winrt::TerminalApp::implementation
 {
     SnippetsPaneContent::SnippetsPaneContent() :
-        _allTasks{ winrt::single_threaded_observable_vector<TerminalApp::FilteredTask>() }
+        _allTasks{ winrt::single_threaded_observable_vector<TerminalApp::FilteredTask>() },
+        _aiCommands{ winrt::single_threaded_observable_vector<TerminalApp::AiCommandItem>() }
     {
         InitializeComponent();
 
         WUX::Automation::AutomationProperties::SetName(*this, RS_(L"SnippetPaneTitle/Text"));
+
+        // Load AI commands from JSON file
+        _loadAiCommandsFromJson();
+    }
+
+    void SnippetsPaneContent::_loadAiCommandsFromJson()
+    {
+        try
+        {
+            wchar_t exePath[MAX_PATH];
+            GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+            std::filesystem::path exeDir = std::filesystem::path(exePath).parent_path();
+            std::filesystem::path jsonPath = exeDir / L"commands.json";
+
+            if (std::filesystem::exists(jsonPath))
+            {
+                std::ifstream file(jsonPath);
+                if (file.is_open())
+                {
+                    Json::Value root;
+                    Json::CharReaderBuilder builder;
+                    std::string errors;
+
+                    if (Json::parseFromStream(builder, file, &root, &errors))
+                    {
+                        for (const auto& key : root.getMemberNames())
+                        {
+                            std::wstring wkey(key.begin(), key.end());
+                            std::vector<std::pair<std::wstring, std::wstring>> cmdList;
+
+                            const auto& commands = root[key];
+                            for (const auto& cmd : commands)
+                            {
+                                std::string cmdStr = cmd["cmd"].asString();
+                                std::string descStr = cmd["desc"].asString();
+
+                                // Convert UTF-8 to wide string
+                                int cmdLen = MultiByteToWideChar(CP_UTF8, 0, cmdStr.c_str(), -1, nullptr, 0);
+                                int descLen = MultiByteToWideChar(CP_UTF8, 0, descStr.c_str(), -1, nullptr, 0);
+
+                                std::wstring wcmd(cmdLen - 1, 0);
+                                std::wstring wdesc(descLen - 1, 0);
+
+                                MultiByteToWideChar(CP_UTF8, 0, cmdStr.c_str(), -1, wcmd.data(), cmdLen);
+                                MultiByteToWideChar(CP_UTF8, 0, descStr.c_str(), -1, wdesc.data(), descLen);
+
+                                cmdList.push_back({ wcmd, wdesc });
+                            }
+
+                            _aiCommandsData[wkey] = cmdList;
+                        }
+                    }
+                }
+            }
+        }
+        catch (...)
+        {
+            // Silently ignore JSON loading errors
+        }
+    }
+
+    void SnippetsPaneContent::UpdateAiCommands(const winrt::hstring& tabTitle)
+    {
+        _aiCommands.Clear();
+
+        // Parse tab title to get command prefix (e.g., "cc" from "cc——shellplus")
+        std::wstring title{ tabTitle };
+        std::wstring cmdPrefix;
+
+        auto dashPos = title.find(L"——");
+        if (dashPos != std::wstring::npos)
+        {
+            cmdPrefix = title.substr(0, dashPos);
+        }
+
+        // Map command prefix to JSON key
+        std::wstring jsonKey;
+        if (cmdPrefix == L"cc")
+        {
+            jsonKey = L"claude";
+            _aiCommandsTitle = L"Claude 命令";
+        }
+        else if (cmdPrefix == L"codex")
+        {
+            jsonKey = L"codex";
+            _aiCommandsTitle = L"Codex 命令";
+        }
+        else if (cmdPrefix == L"gemini")
+        {
+            jsonKey = L"gemini";
+            _aiCommandsTitle = L"Gemini 命令";
+        }
+        else
+        {
+            _aiCommandsTitle = L"AI 命令";
+            PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AiCommandsTitle" });
+            PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AiCommands" });
+            return;
+        }
+
+        // Load commands for the matched key
+        auto it = _aiCommandsData.find(jsonKey);
+        if (it != _aiCommandsData.end())
+        {
+            for (const auto& [cmd, desc] : it->second)
+            {
+                _aiCommands.Append(winrt::make<AiCommandItem>(winrt::hstring{ cmd }, winrt::hstring{ desc }));
+            }
+        }
+
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AiCommandsTitle" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AiCommands" });
     }
 
     void SnippetsPaneContent::_updateFilteredCommands()
@@ -143,14 +261,6 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void SnippetsPaneContent::_runCommandButtonClicked(const Windows::Foundation::IInspectable& sender,
-                                                       const Windows::UI::Xaml::RoutedEventArgs&)
-    {
-        if (const auto& taskVM{ sender.try_as<WUX::Controls::Button>().DataContext().try_as<FilteredTask>() })
-        {
-            _runCommand(taskVM->Command());
-        }
-    }
     void SnippetsPaneContent::_closePaneClick(const Windows::Foundation::IInspectable& /*sender*/,
                                               const Windows::UI::Xaml::RoutedEventArgs&)
     {
@@ -163,7 +273,7 @@ namespace winrt::TerminalApp::implementation
     // also trigger a Tapped).
     //
     // We'll use this to toggle the expanded state of nested items, since the
-    // tree view arrow is so little
+    // tree view arrow is so little. For leaf items, we'll run the command directly.
     void SnippetsPaneContent::_treeItemInvokedHandler(const IInspectable& /*sender*/,
                                                       const MUX::Controls::TreeViewItemInvokedEventArgs& e)
     {
@@ -179,6 +289,11 @@ namespace winrt::TerminalApp::implementation
                 {
                     item.IsExpanded(!item.IsExpanded());
                 }
+            }
+            else
+            {
+                // For leaf items (no children), run the command directly
+                _runCommand(taskVM->Command());
             }
         }
     }

@@ -121,7 +121,11 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         void _TryUpdateActionMap(const Model::Command& cmd);
         void _TryUpdateKeyChord(const Model::Command& cmd, const Control::KeyChord& keys);
 
-        static std::unordered_map<hstring, Model::Command> _loadLocalSnippets(const std::filesystem::path& currentWorkingDirectory);
+        // Use vector of pairs to preserve JSON order
+        using OrderedSnippets = std::vector<std::pair<hstring, Model::Command>>;
+        static OrderedSnippets _loadSnippetsFromFile(const std::filesystem::path& filePath);
+        static OrderedSnippets _loadLocalSnippets(const std::filesystem::path& currentWorkingDirectory);
+        static OrderedSnippets _loadGlobalSnippets();
 
         Windows::Foundation::Collections::IMap<hstring, Model::ActionAndArgs> _AvailableActionsCache{ nullptr };
         Windows::Foundation::Collections::IMap<hstring, Model::Command> _NameMapCache{ nullptr };
@@ -156,7 +160,8 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         Windows::Foundation::Collections::IMap<Control::KeyChord, Model::Command> _ResolvedKeyToActionMapCache{ nullptr };
         Windows::Foundation::Collections::IVector<Model::Command> _AllCommandsCache{ nullptr };
 
-        til::shared_mutex<std::unordered_map<std::filesystem::path, std::unordered_map<hstring, Model::Command>>> _cwdLocalSnippetsCache{};
+        til::shared_mutex<std::unordered_map<std::filesystem::path, OrderedSnippets>> _cwdLocalSnippetsCache{};
+        til::shared_mutex<std::optional<OrderedSnippets>> _globalSnippetsCache{};
 
         std::set<std::string> _changeLog;
 

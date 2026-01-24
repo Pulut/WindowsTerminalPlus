@@ -959,10 +959,12 @@ namespace winrt::TerminalApp::implementation
             newContentArgs = NewTerminalArgs{};
         }
 
-        if (const auto& terminalArgs{ newContentArgs.try_as<NewTerminalArgs>() })
+        if (auto terminalArgs{ newContentArgs.try_as<NewTerminalArgs>() })
         {
             const auto profile{ _settings.GetProfileForArgs(terminalArgs) };
             terminalArgs.Profile(::Microsoft::Console::Utils::GuidToString(profile.Guid()));
+
+            _MaybePromptForStartingDirectory(terminalArgs);
         }
 
         // Manually fill in the evaluated profile.

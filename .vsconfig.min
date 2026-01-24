@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "components": [
+    "Microsoft.VisualStudio.Workload.Universal",
+    "Microsoft.VisualStudio.ComponentGroup.UWP.VC",
+    "Microsoft.VisualStudio.ComponentGroup.MSIX.Packaging",
+    "Microsoft.VisualStudio.ComponentGroup.WindowsAppDevelopment.Prerequisites",
+    "Microsoft.VisualStudio.Component.Windows11SDK.22621"
+  ]
+}
