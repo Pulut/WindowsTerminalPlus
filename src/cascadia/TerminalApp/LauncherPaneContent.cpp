@@ -7,16 +7,16 @@
 #include "LaunchRequestedArgs.g.cpp"
 #include "GitCommitItem.g.cpp"
 
-#include <winrt/Windows.Storage.Pickers.h>
 #include <winrt/Windows.UI.Xaml.Media.Imaging.h>
 #include <Shobjidl.h>
+#include <ShlObj.h>
 #include <filesystem>
 #include <sstream>
+#include "Utils.h"
 
 using namespace winrt::Windows::Foundation;
 using namespace winrt::Windows::UI::Xaml;
 using namespace winrt::Windows::UI::Xaml::Media::Imaging;
-using namespace winrt::Windows::Storage::Pickers;
 using namespace winrt::Microsoft::Terminal::Settings::Model;
 
 namespace winrt::TerminalApp::implementation
@@ -109,47 +109,36 @@ namespace winrt::TerminalApp::implementation
         return nullptr;
     }
 
-    fire_and_forget _selectFolderAsync(winrt::weak_ref<LauncherPaneContent> weakThis, HWND hwnd)
+    safe_void_coroutine LauncherPaneContent::_selectFolderClick(const IInspectable&, const RoutedEventArgs&)
     {
-        auto strongThis = weakThis.get();
-        if (!strongThis)
-        {
-            co_return;
-        }
+        auto lifetime = get_strong();
 
-        FolderPicker picker;
-        picker.SuggestedStartLocation(PickerLocationId::DocumentsLibrary);
-        picker.FileTypeFilter().Append(L"*");
+        const auto parentHwnd = _hostingHwnd;
+        winrt::hstring previousFolder = SelectedFolder();
 
-        // Initialize the picker with the window handle for desktop apps
-        if (hwnd)
-        {
-            auto initializeWithWindow = picker.as<::IInitializeWithWindow>();
-            if (initializeWithWindow)
+        auto folder = co_await OpenFilePicker(parentHwnd, [previousFolder](auto&& dialog) {
+            static constexpr winrt::guid clientGuidLauncherFolderPicker{ 0x7b3f0c2a, 0x1d5e, 0x4a8b, { 0x9c, 0x6f, 0x3e, 0x8d, 0x5a, 0x2b, 0x7c, 0x41 } };
+            THROW_IF_FAILED(dialog->SetClientGuid(clientGuidLauncherFolderPicker));
+
+            DWORD dwOptions;
+            THROW_IF_FAILED(dialog->GetOptions(&dwOptions));
+            THROW_IF_FAILED(dialog->SetOptions(dwOptions | FOS_PICKFOLDERS));
+
+            if (!previousFolder.empty())
             {
-                initializeWithWindow->Initialize(hwnd);
+                try
+                {
+                    auto folderShellItem{ winrt::capture<IShellItem>(&SHCreateItemFromParsingName, previousFolder.c_str(), nullptr) };
+                    dialog->SetFolder(folderShellItem.get());
+                }
+                CATCH_LOG();
             }
-        }
+        });
 
-        auto folder = co_await picker.PickSingleFolderAsync();
-
-        strongThis = weakThis.get();
-        if (!strongThis)
+        if (!folder.empty())
         {
-            co_return;
+            SelectedFolder(folder);
         }
-
-        if (folder)
-        {
-            strongThis->SelectedFolder(folder.Path());
-        }
-    }
-
-    void LauncherPaneContent::_selectFolderClick(const IInspectable&, const RoutedEventArgs&)
-    {
-        // Get the foreground window handle for the picker
-        HWND hwnd = GetForegroundWindow();
-        _selectFolderAsync(get_weak(), hwnd);
     }
 
     void LauncherPaneContent::_claudeClick(const IInspectable&, const RoutedEventArgs&)
@@ -187,18 +176,24 @@ namespace winrt::TerminalApp::implementation
         LaunchRequested.raise(*this, args);
     }
 
-    void LauncherPaneContent::UpdateGitLog(const winrt::hstring& workingDirectory)
+    safe_void_coroutine LauncherPaneContent::UpdateGitLog(const winrt::hstring& workingDirectory)
     {
+        auto lifetime = get_strong();
+
         _gitCommits.Clear();
 
         if (workingDirectory.empty())
         {
             _gitCommitsControl().ItemsSource(_gitCommits);
-            return;
+            co_return;
         }
 
-        // Execute git log command via cmd.exe
-        std::wstring cmdLine = L"cmd.exe /c git -C \"" + std::wstring(workingDirectory) + L"\" log --pretty=format:\"%ad  %h|%s\" --date=format:\"%Y-%m-%d %H:%M:%S\"";
+        std::wstring workDir{ workingDirectory };
+
+        // Switch to background thread for blocking I/O
+        co_await winrt::resume_background();
+
+        std::wstring cmdLine = L"cmd.exe /c git -C \"" + workDir + L"\" log --pretty=format:\"%ad  %h|%s\" --date=format:\"%Y-%m-%d %H:%M:%S\"";
 
         SECURITY_ATTRIBUTES sa;
         sa.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -208,7 +203,9 @@ namespace winrt::TerminalApp::implementation
         HANDLE hReadPipe, hWritePipe;
         if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0))
         {
-            return;
+            co_await wil::resume_foreground(Dispatcher());
+            _gitCommitsControl().ItemsSource(_gitCommits);
+            co_return;
         }
 
         SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
@@ -222,16 +219,17 @@ namespace winrt::TerminalApp::implementation
         PROCESS_INFORMATION pi = {};
 
         std::wstring cmdBuffer = cmdLine;
-        if (!CreateProcessW(nullptr, cmdBuffer.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, workingDirectory.c_str(), &si, &pi))
+        if (!CreateProcessW(nullptr, cmdBuffer.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, workDir.c_str(), &si, &pi))
         {
             CloseHandle(hReadPipe);
             CloseHandle(hWritePipe);
-            return;
+            co_await wil::resume_foreground(Dispatcher());
+            _gitCommitsControl().ItemsSource(_gitCommits);
+            co_return;
         }
 
         CloseHandle(hWritePipe);
 
-        // Read output
         std::string output;
         char buffer[4096];
         DWORD bytesRead;
@@ -246,38 +244,37 @@ namespace winrt::TerminalApp::implementation
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
 
-        // Parse output and populate git commits (convert UTF-8 to UTF-16)
-        std::wstring wOutput;
+        // Parse on background thread
+        std::vector<std::pair<std::wstring, std::wstring>> commits;
         if (!output.empty())
         {
+            std::wstring wOutput;
             int wideLen = MultiByteToWideChar(CP_UTF8, 0, output.c_str(), static_cast<int>(output.size()), nullptr, 0);
             if (wideLen > 0)
             {
                 wOutput.resize(wideLen);
                 MultiByteToWideChar(CP_UTF8, 0, output.c_str(), static_cast<int>(output.size()), wOutput.data(), wideLen);
             }
+            std::wistringstream stream(wOutput);
+            std::wstring line;
+            while (std::getline(stream, line))
+            {
+                if (line.empty()) continue;
+                auto separatorPos = line.find(L'|');
+                if (separatorPos != std::wstring::npos)
+                {
+                    commits.emplace_back(line.substr(0, separatorPos), line.substr(separatorPos + 1));
+                }
+            }
         }
-        std::wistringstream stream(wOutput);
-        std::wstring line;
 
-        while (std::getline(stream, line))
+        // Switch back to UI thread
+        co_await wil::resume_foreground(Dispatcher());
+
+        for (const auto& [dateTimeAndHash, message] : commits)
         {
-            if (line.empty())
-            {
-                continue;
-            }
-
-            // Find the separator between datetime+hash and message
-            auto separatorPos = line.find(L'|');
-            if (separatorPos != std::wstring::npos)
-            {
-                auto dateTimeAndHash = line.substr(0, separatorPos);
-                auto message = line.substr(separatorPos + 1);
-                _gitCommits.Append(winrt::make<GitCommitItem>(winrt::hstring(dateTimeAndHash), winrt::hstring(message)));
-            }
+            _gitCommits.Append(winrt::make<GitCommitItem>(winrt::hstring(dateTimeAndHash), winrt::hstring(message)));
         }
-
-        // Set the ItemsSource on the control
         _gitCommitsControl().ItemsSource(_gitCommits);
     }
 }

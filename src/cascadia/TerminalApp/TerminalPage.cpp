@@ -270,6 +270,13 @@ namespace winrt::TerminalApp::implementation
         }
 
         _hostingHwnd = hwnd;
+
+        // Pass the hosting HWND to the launcher pane for file picker dialogs
+        if (const auto launcher = LauncherPane())
+        {
+            winrt::get_self<implementation::LauncherPaneContent>(launcher)->SetHostingHwnd(hwnd);
+        }
+
         return S_OK;
     }
 

@@ -60,7 +60,9 @@ namespace winrt::TerminalApp::implementation
         WINRT_OBSERVABLE_PROPERTY(winrt::hstring, SelectedFolder, PropertyChanged.raise, L"");
 
         // Git log update
-        void UpdateGitLog(const winrt::hstring& workingDirectory);
+        safe_void_coroutine UpdateGitLog(const winrt::hstring& workingDirectory);
+
+        void SetHostingHwnd(HWND hwnd) { _hostingHwnd = hwnd; }
 
         // Event for launch requests
         til::typed_event<TerminalApp::LauncherPaneContent, TerminalApp::LaunchRequestedArgs> LaunchRequested;
@@ -68,10 +70,11 @@ namespace winrt::TerminalApp::implementation
     private:
         friend struct LauncherPaneContentT<LauncherPaneContent>;
 
+        HWND _hostingHwnd{ nullptr };
         winrt::Microsoft::Terminal::Settings::Model::CascadiaSettings _settings{ nullptr };
         winrt::Windows::Foundation::Collections::IObservableVector<TerminalApp::GitCommitItem> _gitCommits{ nullptr };
 
-        void _selectFolderClick(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs&);
+        safe_void_coroutine _selectFolderClick(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs&);
         void _claudeClick(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs&);
         void _codexClick(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs&);
         void _geminiClick(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs&);
